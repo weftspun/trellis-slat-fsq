@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "trellis-slat-fsq: render-free TRELLIS.2 SLAT to FSQ tokenizer"
+abstract: >-
+  TRELLIS.2 SLAT quantized grid (8^3 x 128) to ~512 render-free Finite Scalar
+  Quantization tokens per object over an exact 8192-code fixed grid ([8,8,8,16],
+  per-code parity with Kyvo's 8192-entry VQ). FSQ is a fixed grid, so
+  tokenization needs no training; the quantize+index kernel is written in Slang
+  and invoked from PyTorch.
+type: software
+authors:
+  - family-names: Lee
+    given-names: "K. S. Ernest"
+    alias: iFire
+    email: ernest.lee@chibifire.com
+version: 0.1.0
+license:
+  - MIT
+  - Apache-2.0
+repository-code: "https://github.com/weftspun/trellis-slat-fsq"
+keywords:
+  - TRELLIS
+  - SLAT
+  - finite-scalar-quantization
+  - FSQ
+  - 3D-tokenizer
+  - Slang
+  - PyTorch
+references:
+  - type: article
+    title: "Aligning Text, Images, and 3D Structure Token-by-Token"
+    authors:
+      - name: "Kyvo authors"
+    year: 2025
+    identifiers:
+      - type: other
+        value: "arXiv:2506.08002"
+        description: "Kyvo — the direct precedent for the SLAT to 512-token VQ-VAE."

@@ -32,12 +32,22 @@ Obliterated (all training/compute-bound):
 - **Learned SLAT encoder/decoder training.**
 - The `render` optional dependency extra in `pyproject.toml` (was empty TODO anyway).
 
-Kept (zero compute):
+Kept (no *training*):
 
-- **Render-free FSQ / Residual FSQ tokenization**: quantize SLAT → tokens with a fixed grid, CPU, no
-  training. This is the surviving core, already scaffolded in `lib/trellis_slat_fsq.ex` (`fsq_quantize/2`).
+- **Render-free FSQ tokenization** (`trellis_slat_fsq/` Python package): quantize an 8³×128 SLAT grid →
+  512 tokens with a fixed grid, no training. The surviving core.
 - The `[8, 8, 8, 16]` → exactly-8192 level set stands as the parity choice from
   `20260713-port-kyvo-residual-fsq.md`; it needs no training to use.
+
+## Implementation substrate — Slang + PyTorch (amendment)
+
+The quantize+index math runs as a **Slang compute kernel** (`trellis_slat_fsq/fsq.slang`) invoked from
+**PyTorch** via `slangtorch` on CUDA, with a numerically identical **pure-torch reference** for CPU /
+no-Slang environments. This **reinstates `torch`** (and adds the optional `slangtorch`/CUDA toolchain),
+reversing this MADR's earlier "no torch" minimization — but **only for the inference kernel; there is still
+no training**, so the no-budget core holds. `slangtorch`/CUDA is an *optional* extra (`[slang]`); the torch
+CPU path keeps the package usable without a GPU. (The earlier `lib/trellis_slat_fsq.ex` Elixir/Pythonx
+binding remains a separate interface and is unaffected.)
 
 ## Accepted consequence (the cost of zero budget)
 
@@ -62,7 +72,17 @@ render aux-loss + LM port from there.
 
 ## Verification
 
-- `TrellisSlatFsq.init()` then `fsq_quantize/2` produces tokens from a SLAT latent on CPU with no training
-  step and no rendering.
-- `pyproject.toml` has no `render` extra and no renderer/decoder dependency.
-- No training loop, renderer, corpus, or LM code exists in the repo.
+- **Test only the Slang → PyTorch (CUDA) path** (`tests/test_tokenizer.py`): drive the Slang kernel through
+  `encode()` on a CUDA tensor and assert shape (512 tokens), index range `[0, 8192)`, and saturated index
+  extremes (0 and 8191). The pure-torch CPU reference is **not** tested. Suite skips without
+  `slangtorch` + CUDA.
+- **Proof step — `plausible-witness-dag`** (`github.com/fire/plausible-witness-dag`, a Lean/Lake
+  iterative-deepening witness-search library) is the intended formal-verification harness: certify the FSQ
+  index map (fixed grid → `[0, 8192)`, bijective on the code lattice) as a witness-DAG proof. *Not yet
+  implemented* — it is Lean-side and is its own effort; recorded here as the committed verification method.
+- **Real fixture — CC0 OpenUSD asset**: use a `.usda` file carrying **both geometry and materials** from
+  the taskspun CC0 stages (`quaternius-stage`, `kenney-stage`, `thebasemesh-stage`). Note the gap: turning
+  USD → SLAT needs the TRELLIS.2 encoder, which is obliterated here — so the USD fixture exercises the
+  tokenizer only once a SLAT latent exists for it.
+- `pyproject.toml` has no `render` extra and no renderer/decoder dependency; no training loop, renderer,
+  corpus, or LM code exists in the repo.
