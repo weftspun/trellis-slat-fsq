@@ -1,15 +1,15 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "trellis-slat-fsq: TRELLIS.2 SLAT to Residual-FSQ tokenizer (Kyvo reproduction in Elixir/Nx)"
+title: "trellis-slat-fsq: TRELLIS.2 SLAT to Residual-FSQ tokenizer (Kyvo reproduction, Python + Slang + PyTorch)"
 abstract: >-
   TRELLIS.2 SLAT (64^3 x 8) to ~512 reconstructive Residual Finite Scalar
   Quantization tokens per object; per-stage levels [8,8,8,16] give an exact
   8192-code grid (per-code parity with Kyvo's 8192-entry VQ), with the coarse
   stage prefix doubling as a retrieval ID. A reproduction of Kyvo's method with
-  Residual FSQ instead of VQ, implemented entirely in Elixir/Nx (Torchx backend
-  on Windows); the quantize+index kernel is a Slang shader reached through
-  ports/adapters, and the FSQ index map is certified in Lean via
-  plausible-witness-dag.
+  Residual FSQ instead of VQ, in Python + PyTorch with Slang compute kernels
+  (slangtorch on CUDA; a plain-buffer Slang variant for deployment); the FSQ
+  index map is proven bijective in Lean, with a plausible-witness-dag
+  certification run at build time.
 type: software
 authors:
   - family-names: Lee
