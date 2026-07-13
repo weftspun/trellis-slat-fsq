@@ -10,11 +10,18 @@ dependencies = [
     "torch>=2.5",  # tensors + CPU reference path for the fixed-grid FSQ kernel (no training)
 ]
 
-# No training/renderer/decoder (zero-compute descope, see decisions/). FSQ is a fixed grid; the CPU
-# torch reference needs no CUDA, so `slang` (the CUDA fast path via slangtorch) stays optional.
+# `slang` = CUDA fast path for the FSQ kernel (fsq.slang via slangtorch). `train` = full Kyvo-method
+# reproduction (residual-FSQ tokenizer + render aux-loss + Qwen3.5-0.8B LM). See decisions/.
 [project.optional-dependencies]
 slang = ["slangtorch"]
 test = ["pytest"]
+train = [
+    "slangtorch",          # FSQ kernel + Slang 3DGS renderer (slang-gaussian-rasterization)
+    "transformers>=4.44",  # Qwen3.5-0.8B backbone
+    "peft>=0.11",          # LoRA
+    "lpips",               # perceptual term of the render aux-loss
+    "usd-core",            # read CC0 .usda stage assets
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -43,9 +50,17 @@ pytest = ">=8"
 [tool.pixi.feature.slang.pypi-dependencies]
 slangtorch = "*"
 
+[tool.pixi.feature.train.pypi-dependencies]
+slangtorch = "*"
+transformers = ">=4.44"
+peft = ">=0.11"
+lpips = "*"
+usd-core = "*"
+
 [tool.pixi.environments]
 default = { features = ["test"] }
 slang = { features = ["test", "slang"] }
+train = { features = ["test", "slang", "train"] }
 
 [tool.pixi.tasks]
 test = "pytest -q"

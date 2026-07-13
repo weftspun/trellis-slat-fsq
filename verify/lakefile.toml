@@ -1,0 +1,12 @@
+# Lean/Lake verification package: certify the FSQ index map via plausible-witness-dag.
+# See ../decisions/20260713-reproduce-kyvo-full-method-residual-fsq.md (Verification).
+name = "trellis_slat_fsq_verify"
+defaultTargets = ["TrellisSlatFsqVerify"]
+
+[[lean_lib]]
+name = "TrellisSlatFsqVerify"
+
+[[require]]
+name = "plausible-witness-dag"
+git = "https://github.com/fire/plausible-witness-dag"
+rev = "main"

@@ -1,7 +1,7 @@
 ---
 title: Port Kyvo (arXiv:2506.08002) to this repo with Residual FSQ — build the missing 3D tokenizer here, port only the LM layer
 date: 2026-07-13
-status: SUPERSEDED by 20260713-no-budget-descope-render-free-fsq-only.md (no compute budget — tokenizer training + LM port obliterated). Was: accepted — Residual FSQ ADOPTED as the SLAT quantizer; tokenizer built here (Kyvo ships none); LM layer ported on top; coarse residual prefix IS the retrieval ID. The [8,8,8,16]=8192 level set survives (needs no training). Restore the rest if budget returns.
+status: REACTIVATED (accepted) under 20260713-reproduce-kyvo-full-method-residual-fsq.md — Residual FSQ ADOPTED as the SLAT quantizer; tokenizer built here (Kyvo ships none); LM layer ported on top; coarse residual prefix IS the retrieval ID; per-stage [8,8,8,16]=8192. [Was briefly superseded by the no-budget descope, now itself superseded.]
 tier: baseline
 decision-makers: K. S. Ernest (iFire) Lee
 ---

@@ -1,7 +1,7 @@
 ---
 title: Generation channel = TRELLIS.2 SLAT → ~512 reconstructive FSQ tokens, trained with a Kyvo-style render aux-loss
 date: 2026-07-13
-status: SUPERSEDED by 20260713-no-budget-descope-render-free-fsq-only.md (no compute budget — render aux-loss obliterated). Was: accepted — render aux-loss ADOPTED (do what Kyvo does); training-time only; inference render-free; FSQ downstream. Restore if budget returns.
+status: REACTIVATED (accepted) under 20260713-reproduce-kyvo-full-method-residual-fsq.md — render aux-loss ADOPTED (do what Kyvo does); training-time only; inference render-free; FSQ downstream. [Was briefly superseded by the no-budget descope, now itself superseded.]
 tier: baseline
 decision-makers: K. S. Ernest (iFire) Lee
 ---

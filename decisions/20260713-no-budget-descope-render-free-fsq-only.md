@@ -1,7 +1,7 @@
 ---
 title: No-budget descope — obliterate all training/compute features; keep only render-free FSQ tokenization
 date: 2026-07-13
-status: accepted — ZERO-COMPUTE floor; render aux-loss + renderer + TRELLIS.2 decoder + corpus + LM port all OBLITERATED; reversible when budget exists
+status: SUPERSEDED by 20260713-reproduce-kyvo-full-method-residual-fsq.md (full-method reproduction reactivates the training pipeline). Was: accepted — ZERO-COMPUTE floor; render aux-loss + renderer + TRELLIS.2 decoder + corpus + LM port all OBLITERATED. Its render-free `encode` path survives as the inference half of the reproduced tokenizer.
 tier: baseline
 supersedes: 20260713-generation-slat-fsq-render-auxloss.md, 20260713-port-kyvo-residual-fsq.md
 decision-makers: K. S. Ernest (iFire) Lee
