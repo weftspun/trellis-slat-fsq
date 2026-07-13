@@ -14,4 +14,4 @@ setup = "mix deps.get"
 compile = "mix compile"
 test = "mix test"
 # Slang -> Nx path tests need the NIF + CUDA; excluded by default (see test_helper.exs).
-test-slang = "mix test --include slang_cuda"
+test-slang = "mix test --include slang_nif"

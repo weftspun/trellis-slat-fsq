@@ -1,9 +1,10 @@
 defmodule TrellisSlatFsqTest do
   use ExUnit.Case, async: true
 
-  # Per directive these tests cover ONLY the Slang -> Nx path (the compiled-Slang NIF adapter on CUDA).
-  # The Nx reference adapter is fallback/training only and is deliberately NOT tested.
-  @moduletag :slang_cuda
+  # Per directive these tests cover ONLY the Slang -> Nx path (the compiled-Slang NIF adapter;
+  # CPU target today, PTX/CUDA later). The Nx reference adapter is fallback/training only and is
+  # deliberately NOT tested.
+  @moduletag :slang_nif
 
   alias TrellisSlatFsq.SlangPort.Nif
 

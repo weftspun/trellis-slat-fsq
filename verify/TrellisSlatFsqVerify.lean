@@ -1,21 +1,17 @@
 /-
-Proof obligations for the SLAT->FSQ tokenizer (see ../trellis_slat_fsq/fsq.slang and fsq_torch.py).
+Proof obligations for the SLAT->FSQ tokenizer (see ../priv/slang/fsq.slang and lib/trellis_slat_fsq/fsq.ex).
 
-Certified via fire/plausible-witness-dag (iterative-deepening witness search over bounded Fin types).
-The FSQ index map is a mixed-radix fold: with levels [8, 8, 8, 16] and basis [1, 8, 64, 512],
+Two layers of assurance:
 
-  index (c0, c1, c2, c3) = c0*1 + c1*8 + c2*64 + c3*512
-
-over per-dim codes c_i : Fin level_i. Obligations:
-
-  1. `index_lt`   — every index lands in [0, 8192)          (range soundness)
-  2. `index_bij`  — the map Fin 8 x Fin 8 x Fin 8 x Fin 16 -> Fin 8192 is a bijection
-                    (no collisions, full coverage: the "8192-entry codebook" claim)
-
-Both are finite and decidable; plausible-witness-dag drives the witness search / certification.
-NOTE: scaffold — `lake build` has not been run in this environment; treat as the stated obligation,
-not a checked proof, until CI runs it.
+1. **Kernel-checked proofs** — the FSQ index map (mixed-radix fold over levels [8, 8, 8, 16], basis
+   [1, 8, 64, 512]) is a bijection onto [0, 8192). Proven with an explicit inverse (`decode`) and `omega`;
+   no axioms, no `sorry`.
+2. **Witness-DAG certification** — `PlausibleWitnessDag.resolve` (fire/plausible-witness-dag) searches for
+   a round-trip violation witness (`decode (index c) ≠ c`) across its plausible/Fin ladder; the expected
+   outcome is `provablyNone` within budget. Executed at build time by `#eval` below.
 -/
+
+import PlausibleWitnessDag
 
 namespace TrellisSlatFsqVerify
 
@@ -30,25 +26,71 @@ def codebookSize : Nat := 8192
 
 theorem levels_prod : levels.foldl (· * ·) 1 = codebookSize := by decide
 
-/-- The FSQ index map on per-dim codes. -/
-def index (c₀ : Fin 8) (c₁ : Fin 8) (c₂ : Fin 8) (c₃ : Fin 16) : Nat :=
-  c₀.val * 1 + c₁.val * 8 + c₂.val * 64 + c₃.val * 512
+/-- Per-dim codes for one token. -/
+structure Codes where
+  c0 : Fin 8
+  c1 : Fin 8
+  c2 : Fin 8
+  c3 : Fin 16
+  deriving DecidableEq, Repr
+
+/-- The FSQ index map (same fold as fsq.slang / fsq.ex). -/
+def index (c : Codes) : Nat :=
+  c.c0.val * 1 + c.c1.val * 8 + c.c2.val * 64 + c.c3.val * 512
 
 /-- Range soundness: every code tuple maps into [0, 8192). -/
-theorem index_lt (c₀ : Fin 8) (c₁ : Fin 8) (c₂ : Fin 8) (c₃ : Fin 16) :
-    index c₀ c₁ c₂ c₃ < codebookSize := by
-  unfold index codebookSize
+theorem index_lt (c : Codes) : index c < codebookSize := by
+  obtain ⟨⟨v0, h0⟩, ⟨v1, h1⟩, ⟨v2, h2⟩, ⟨v3, h3⟩⟩ := c
+  simp only [index, codebookSize]
   omega
 
-/-- Bundled map into Fin 8192. -/
-def indexFin (c : Fin 8 × Fin 8 × Fin 8 × Fin 16) : Fin codebookSize :=
-  ⟨index c.1 c.2.1 c.2.2.1 c.2.2.2, index_lt _ _ _ _⟩
+/-- Explicit inverse: peel the mixed-radix digits back off. Total (top digit mod 16), so no
+dependent proof argument gets in the way of rewriting. -/
+def decode (i : Nat) : Codes where
+  c0 := ⟨i % 8, Nat.mod_lt _ (by omega)⟩
+  c1 := ⟨i / 8 % 8, Nat.mod_lt _ (by omega)⟩
+  c2 := ⟨i / 64 % 8, Nat.mod_lt _ (by omega)⟩
+  c3 := ⟨i / 512 % 16, Nat.mod_lt _ (by omega)⟩
 
-/-- Bijectivity: 8192 inputs, 8192 outputs, injective by mixed-radix uniqueness.
-    Finite + decidable; certified through the plausible-witness-dag search driver. -/
-theorem index_bij : Function.Bijective indexFin := by
-  -- Witness-DAG certification target (plausible-witness-dag). Decidable on Fin; a direct
-  -- `decide` is also possible but expensive at 8192 cases without the staged search.
-  sorry
+/-- Right inverse: index (decode i) = i on [0, 8192) — the map is SURJECTIVE onto the codebook. -/
+theorem index_decode (i : Nat) (h : i < codebookSize) : index (decode i) = i := by
+  simp only [index, decode, codebookSize] at *
+  omega
+
+/-- Left inverse: decode (index c) = c — the map is INJECTIVE (no codebook collisions). -/
+theorem decode_index (c : Codes) : decode (index c) = c := by
+  obtain ⟨⟨v0, h0⟩, ⟨v1, h1⟩, ⟨v2, h2⟩, ⟨v3, h3⟩⟩ := c
+  simp only [decode, index, Codes.mk.injEq, Fin.mk.injEq]
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> omega
+
+/-- Bijectivity, stated as injectivity (immediate from the two-sided inverse). -/
+theorem index_inj (a b : Codes) (h : index a = index b) : a = b := by
+  rw [← decode_index a, ← decode_index b, h]
+
+/-! ## Witness-DAG certification (plausible-witness-dag)
+
+Searches for a round-trip violation witness inside the driver's Fin windows. `candidateIsWitness w`
+decodes `w`, re-encodes, and flags a witness iff the round trip breaks — which the proofs above show
+is impossible, so the expected outcome is `provablyNone`. -/
+
+/-- Boolean round-trip check used as the plausible candidate predicate. -/
+def roundTripBroken (w : Nat) : Bool :=
+  if w < codebookSize then index (decode w) != w else false
+
+/-- Deterministic read-back: scan candidates up to the walk budget. -/
+def readback (walkSteps : Nat) : PlausibleWitnessDag.Readback Nat :=
+  let bound := min walkSteps codebookSize
+  match (List.range bound).find? roundTripBroken with
+  | some w => { value := w, found := true, witnessIdx := w, budgetHit := false }
+  | none => { value := 0, found := false, budgetHit := bound < codebookSize }
+
+def runCertification : IO Unit := do
+  let (_, lvl, trace) ← PlausibleWitnessDag.resolve
+    "fsq-index-roundtrip-violation"
+    (fun _ w => roundTripBroken w)
+    readback
+  IO.println s!"witness-dag: level={lvl} outcome={repr trace.outcome} (expected: provablyNone or budgetHit)"
+
+#eval runCertification
 
 end TrellisSlatFsqVerify

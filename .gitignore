@@ -34,3 +34,11 @@ lake/
 erl_crash.dump
 *.ez
 mix.lock
+
+# NIF build artifacts (rebuild via native/build_windows.ps1)
+priv/*.dll
+priv/*.lib
+priv/*.exp
+native/*.gen.cpp
+native/*.obj
+erl_crash.dump

@@ -16,27 +16,53 @@ defmodule TrellisSlatFsq.SlangPort do
 
   @doc "Pick the adapter: the Slang NIF when loaded, else the Nx reference."
   def select do
-    if TrellisSlatFsq.SlangPort.Nif.loaded?(),
+    # apply/3 keeps the check dynamic: the NIF replaces loaded?/0 at load time, so the compiler's
+    # static "always false" view of the stub doesn't apply.
+    if apply(TrellisSlatFsq.SlangPort.Nif, :loaded?, []),
       do: TrellisSlatFsq.SlangPort.Nif,
       else: TrellisSlatFsq.SlangPort.NxReference
   end
 
   defmodule Nif do
     @moduledoc """
-    Deployment adapter: compiled `fsq.slang` behind a NIF.
-
-    Build (open work): `slangc priv/slang/fsq.slang -target ptx` (CUDA) or `-target cpp` (CPU),
-    wrap with a small C NIF that takes the tensor binary + shape and returns the index binary.
+    Deployment adapter: compiled Slang kernel (`priv/slang/fsq_nif.slang` -> `priv/fsq_nif.dll`)
+    behind a NIF. Build with `native/build_windows.ps1` (slangc CPU target + MSVC). The NIF exchanges
+    raw tensor binaries: f32 latent in, s32 indices out.
     """
     @behaviour TrellisSlatFsq.SlangPort
 
-    # Flipped to true by the NIF's @on_load once it exists; config until then.
-    def loaded?, do: Application.get_env(:trellis_slat_fsq, :slang_nif_loaded, false)
+    @on_load :load_nif
+
+    def load_nif do
+      path = :filename.join(:code.priv_dir(:trellis_slat_fsq), ~c"fsq_nif")
+      # Missing DLL is fine — loaded?/0 stays false and select/0 falls back to the Nx reference.
+      case :erlang.load_nif(path, 0) do
+        :ok -> :ok
+        {:error, _} -> :ok
+      end
+    end
+
+    @doc "True once the compiled-Slang NIF is loaded (the NIF overrides this stub)."
+    def loaded?, do: false
 
     @impl true
-    def encode(_latent) do
-      raise "Slang NIF not built: compile priv/slang/fsq.slang (slangc -> ptx/cpp) and wire the NIF"
+    def encode(latent) do
+      {n, d} = Nx.shape(latent)
+      levels = TrellisSlatFsq.FSQ.levels()
+      basis = TrellisSlatFsq.FSQ.basis()
+
+      if d != length(levels),
+        do: raise(ArgumentError, "latent last axis #{d} != #{length(levels)} FSQ levels")
+
+      bin = latent |> Nx.as_type(:f32) |> Nx.backend_copy(Nx.BinaryBackend) |> Nx.to_binary()
+
+      encode_raw(bin, n, d, levels, basis)
+      |> Nx.from_binary(:s32)
+      |> Nx.as_type(:s64)
     end
+
+    @doc false
+    def encode_raw(_bin, _n, _d, _levels, _basis), do: :erlang.nif_error(:slang_nif_not_loaded)
   end
 
   defmodule NxReference do
