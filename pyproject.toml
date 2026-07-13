@@ -1,7 +1,7 @@
 [project]
 name = "trellis-slat-fsq"
 version = "0.1.0"
-description = "TRELLIS.2 SLAT -> ~512 reconstructive FSQ tokens for generation (Kyvo-style render aux-loss)"
+description = "TRELLIS.2 SLAT -> ~512 render-free FSQ tokens (fixed grid, no training). See decisions/20260713-no-budget-descope-render-free-fsq-only.md"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT OR Apache-2.0"
@@ -12,11 +12,9 @@ dependencies = [
     "numpy",
 ]
 
-# Training the SLAT->FSQ tokenizer needs a differentiable multi-view renderer + the TRELLIS.2 decoder
-# (Kyvo-style pixel aux-loss). Kept as an extra so the core stays installable without a renderer;
-# inference is render-free and does not need this.
+# Zero-compute descope: no renderer, no TRELLIS.2 decoder, no training. FSQ is a fixed grid (no learned
+# codebook), so tokenization runs on CPU with no training step. See decisions/.
 [project.optional-dependencies]
-render = []  # TODO: TRELLIS.2 decoder + differentiable renderer (nvdiffrast / gsplat) — see decisions/
 test = ["pytest"]
 
 [build-system]

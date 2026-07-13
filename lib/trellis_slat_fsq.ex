@@ -13,10 +13,15 @@ defmodule TrellisSlatFsq do
     * Quantized: 8^3 x 128
     * ~512 tokens/object (~40x compression)
 
-  FSQ (fixed grid, no learned codebook) is used over VQ. This module embeds CPython via
+  FSQ (fixed grid, no learned codebook) is used over VQ. Because the grid is fixed, tokenization
+  needs **no training and no GPU** — it runs on CPU. This module embeds CPython via
   [Pythonx](https://hex.pm/packages/pythonx) and calls the real `torch` +
-  `vector-quantize-pytorch` FSQ implementation. The SLAT encoder and the render aux-loss training
-  are open work; `fsq_quantize/2` wires the quantizer that already exists.
+  `vector-quantize-pytorch` FSQ implementation.
+
+  Zero-compute descope (see `decisions/20260713-no-budget-descope-render-free-fsq-only.md`): the render
+  aux-loss, differentiable renderer, TRELLIS.2 decoder, and learned encoder training are OBLITERATED (no
+  budget). What remains is render-free FSQ tokenization of SLAT — reconstruction quality is unvalidated,
+  which is the accepted cost of zero budget.
 
   ## Usage
 
