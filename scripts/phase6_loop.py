@@ -37,13 +37,16 @@ SNAPSHOT_GLOB = os.path.expanduser(
 )
 
 
+DEVICE = "cuda"  # CPU is banned (user directive); scripts hard-fail without CUDA.
+
+
 def step13_tokenize(n_objects: int, seq_3d: int, out_parquet: str) -> list[dict]:
     """Synthetic SLAT -> ResidualFSQ tokens (stage-0 prefix of the first seq_3d positions) -> Parquet."""
     torch.manual_seed(0)
-    tok = SlatFsqReconstructiveTokenizer()  # untrained encoder; quantizer is the fixed FSQ grid
+    tok = SlatFsqReconstructiveTokenizer().to(DEVICE)  # untrained encoder; quantizer is the fixed FSQ grid
     rows = []
     for i in range(n_objects):
-        slat = torch.randn(1, 8, 64, 64, 64)
+        slat = torch.randn(1, 8, 64, 64, 64, device=DEVICE)
         with torch.no_grad():
             indices, _codes = tok.encode(slat)  # [1, 8, 8, 8, Q]
         stage0 = indices[0, ..., 0].reshape(-1)[:seq_3d].tolist()  # raw grid order (Kyvo layout)
@@ -63,19 +66,19 @@ def load_lm(vocab: UnifiedVocab, snapshot: str):
     from peft import LoraConfig, get_peft_model
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    model = AutoModelForCausalLM.from_pretrained(snapshot, torch_dtype=torch.float32)
+    model = AutoModelForCausalLM.from_pretrained(snapshot, dtype=torch.bfloat16, device_map=DEVICE)
     hf_tok = AutoTokenizer.from_pretrained(snapshot)
     model.resize_token_embeddings(vocab.total)
     cfg = LoraConfig(r=8, lora_alpha=16, target_modules=["q_proj", "v_proj"], task_type="CAUSAL_LM")
     model = get_peft_model(model, cfg)
-    return model, hf_tok
+    return model.to(DEVICE), hf_tok
 
 
 def build_example(vocab: UnifiedVocab, hf_tok, tokens: list[int]) -> tuple[torch.Tensor, torch.Tensor]:
     """`BOS [3d] "reconstruct" OUTSEP [target 3d] EOS`; loss only on the target segment."""
     text_ids = hf_tok("reconstruct the object", add_special_tokens=False)["input_ids"]
     seq = assemble_sequence(vocab, slat_tokens=tokens, text=text_ids, target_slat_tokens=tokens)
-    input_ids = torch.tensor([seq])
+    input_ids = torch.tensor([seq], device=DEVICE)
     labels = input_ids.clone()
     outsep_pos = seq.index(vocab.specials().outsep)
     labels[0, : outsep_pos + 1] = -100  # supervise only the target 3D block + EOS
@@ -107,14 +110,14 @@ def step15_eval(model, vocab, hf_tok, rows, gen_tokens: int) -> dict:
     text_ids = hf_tok("reconstruct the object", add_special_tokens=False)["input_ids"]
     prompt = assemble_sequence(vocab, slat_tokens=row["tokens"], text=text_ids)
     prompt = prompt[:-1] + [sp.outsep, sp.bo3d]  # replace EOS with the answer prefix
-    ids = torch.tensor([prompt])
+    ids = torch.tensor([prompt], device=DEVICE)
 
     generated = []
     for _ in range(gen_tokens):
         logits = model(input_ids=ids).logits[0, -1]
         next_id = int(logits.argmax())
         generated.append(next_id)
-        ids = torch.cat([ids, torch.tensor([[next_id]])], dim=1)
+        ids = torch.cat([ids, torch.tensor([[next_id]], device=DEVICE)], dim=1)
 
     target = [t + vocab.slat_offset for t in row["tokens"][:gen_tokens]]
     report = {
@@ -135,6 +138,10 @@ def main() -> None:
     ap.add_argument("--seq-3d", type=int, default=128, help="3D tokens per object (512 = full budget)")
     args = ap.parse_args()
 
+    if not torch.cuda.is_available():
+        sys.exit("CUDA required — CPU is banned (install torch with --torch-backend=auto)")
+    print(f"device: {torch.cuda.get_device_name(0)}")
+
     snapshots = glob.glob(SNAPSHOT_GLOB)
     if not snapshots:
         sys.exit("no local Qwen3.5-0.8B snapshot; fetch with: uvx --from 'huggingface_hub[hf_xet]' hf download Qwen/Qwen3.5-0.8B")
@@ -153,7 +160,8 @@ def main() -> None:
     report = step15_eval(model, vocab, hf_tok, rows, args.gen_tokens)
 
     print(json.dumps({"phase6": "complete", "losses": losses, "eval": report,
-                      "scale": "toy/CPU — plumbing validation, not the reproduction result"}))
+                      "scale": "toy corpus on GPU — pipeline validation; reproduction numbers need "
+                               "real SLAT + the render-aux-trained tokenizer (Phases 3-5)"}))
 
 
 if __name__ == "__main__":
