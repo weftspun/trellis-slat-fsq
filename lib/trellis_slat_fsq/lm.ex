@@ -64,13 +64,18 @@ defmodule TrellisSlatFsq.LM do
   def load(vocab, opts \\ []) do
     repo = Keyword.get(opts, :backbone, @backbone)
     source = Keyword.get(opts, :source, {:hf, repo})
+    # CRITICAL: without an explicit backend the params land on Nx.BinaryBackend and the forward
+    # pass runs in interpreted Elixir (hours). Torchx = LibTorch kernels (Windows default).
+    backend = Keyword.get(opts, :backend, Torchx.Backend)
 
-    # Bumblebee 0.7 has no mapping for "Qwen3_5ForConditionalGeneration"; the Qwen3.5 dense config
-    # parses under the Qwen3 module (verified: spec + weights load, forward pass sane).
+    # Bumblebee (hex 0.7 and github main) has no mapping for "Qwen3_5ForConditionalGeneration";
+    # the Qwen3.5 dense config parses under the Qwen3 module (spec verified; weight-name
+    # compatibility is exercised by `mix trellis.lm_check`).
     {:ok, model_info} =
       Bumblebee.load_model(source,
         module: Bumblebee.Text.Qwen3,
-        architecture: :for_causal_language_modeling
+        architecture: :for_causal_language_modeling,
+        backend: backend
       )
 
     {:ok, tokenizer} = Bumblebee.load_tokenizer(source)

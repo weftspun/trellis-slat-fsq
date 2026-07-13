@@ -17,15 +17,7 @@ defmodule TrellisSlatFsq do
   defdelegate token_budget, to: Tokenizer
   defdelegate quantized_grid, to: Tokenizer
 
-  @doc "Configure the Nx default backend: Torchx on Windows, else keep the configured backend."
-  def init do
-    case :os.type() do
-      {:win32, _} -> Nx.global_default_backend(Torchx.Backend)
-      _ -> :ok
-    end
-
-    :ok
-  end
+  # Note: the Nx default backend (Torchx) is set in config/config.exs — no runtime init is needed.
 
   @doc """
   Render-free encode: projected latent (last axis = 4) or raw FSQ-dim tensor -> token indices.
