@@ -44,10 +44,11 @@ deviation from Kyvo's VQ-VAE.
 
 ## Scope boundary
 
-This repo is the **generation** system only. The **retrieval** system — pooled SLAT → compact 3-code FSQ
-semantic ID, render-free — lives in the separate `slat-semantic-ids` repo and is a distinct decision
-surface. If retrieval ever needs stronger inputs, it may *pool this repo's render-trained tokens*; it
-does not add rendering of its own.
+This repo is the **generation** system only, and the **canonical** home for the render aux-loss and the
+Kyvo evidence behind it. The **retrieval** system — pooled SLAT → compact 3-code FSQ semantic ID,
+render-free — lives in the separate `slat-semantic-ids` repo (canonical for retrieval facts) and is a
+distinct decision surface. If retrieval ever needs stronger inputs, it may *pool this repo's
+render-trained tokens*; it does not add rendering of its own. Neither repo restates the other's facts.
 
 ## Open work (not implemented in this scaffold)
 
