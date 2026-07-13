@@ -63,20 +63,57 @@ defmodule TrellisSlatFsq.LM do
   """
   def load(vocab, opts \\ []) do
     repo = Keyword.get(opts, :backbone, @backbone)
-    {:ok, model_info} = Bumblebee.load_model({:hf, repo})
-    {:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, repo})
+    source = Keyword.get(opts, :source, {:hf, repo})
+
+    # Bumblebee 0.7 has no mapping for "Qwen3_5ForConditionalGeneration"; the Qwen3.5 dense config
+    # parses under the Qwen3 module (verified: spec + weights load, forward pass sane).
+    {:ok, model_info} =
+      Bumblebee.load_model(source,
+        module: Bumblebee.Text.Qwen3,
+        architecture: :for_causal_language_modeling
+      )
+
+    {:ok, tokenizer} = Bumblebee.load_tokenizer(source)
     {extend_embeddings(model_info, vocab.total), tokenizer}
   end
 
   @doc """
-  Extend token embedding + output head to `new_vocab` rows (new rows randomly initialized).
-
-  Axon parameter surgery — open work to make robust across Bumblebee versions; sketched here so the
-  obligation is explicit rather than hidden.
+  Extend the vocabulary dimension to `new_vocab` rows: rebuild the Axon graph from a re-configured
+  spec, and pad every parameter that carries a vocab-sized axis (token embedding; untied LM head)
+  with small random init. Robust to param naming: any axis equal to the old `vocab_size` is padded.
   """
-  def extend_embeddings(model_info, _new_vocab) do
-    # TODO: locate the embedding + lm_head params in model_info.params, pad with new rows, and
-    # rebuild the Axon graph with the widened dims. Depends on Bumblebee's Qwen3.5 param naming.
-    model_info
+  def extend_embeddings(%{params: params, spec: spec} = model_info, new_vocab) do
+    old_vocab = spec.vocab_size
+
+    if new_vocab == old_vocab do
+      model_info
+    else
+      new_spec = Bumblebee.configure(spec, vocab_size: new_vocab)
+      new_model = Bumblebee.build_model(new_spec)
+
+      data =
+        Map.new(params.data, fn {layer, layer_params} ->
+          {layer,
+           Map.new(layer_params, fn {name, tensor} ->
+             {name, pad_vocab_axis(tensor, old_vocab, new_vocab)}
+           end)}
+        end)
+
+      %{model_info | model: new_model, params: %{params | data: data}, spec: new_spec}
+    end
+  end
+
+  defp pad_vocab_axis(tensor, old_vocab, new_vocab) do
+    shape = tensor |> Nx.shape() |> Tuple.to_list()
+
+    case Enum.find_index(shape, &(&1 == old_vocab)) do
+      nil ->
+        tensor
+
+      axis ->
+        pad_shape = shape |> List.replace_at(axis, new_vocab - old_vocab) |> List.to_tuple()
+        {noise, _} = Nx.Random.normal(Nx.Random.key(0), 0.0, 0.02, shape: pad_shape, type: Nx.type(tensor))
+        Nx.concatenate([tensor, noise], axis: axis)
+    end
   end
 end

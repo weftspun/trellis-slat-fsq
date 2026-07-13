@@ -31,9 +31,9 @@ defmodule TrellisSlatFsq.MixProject do
       # Encoder/decoder networks + training loop.
       {:axon, "~> 0.7"},
       {:polaris, "~> 0.1"},
-      # Qwen3.5-0.8B backbone (train-time only). LoRA: lorax pins nx ~> 0.7 (conflicts with nx 0.9),
-      # so LoRA is open work — vendor/port lorax or full fine-tune the 0.8B.
-      {:bumblebee, "~> 0.6", optional: true},
+      # Qwen3.5-0.8B backbone (train-time only). GitHub default branch per directive (hex 0.7.0 has
+      # no Qwen3.5 mapping). LoRA: lorax pins nx ~> 0.7 (conflicts) — open work.
+      {:bumblebee, github: "elixir-nx/bumblebee", optional: true},
       # Parquet is the data format, read/written through Explorer (Polars; precompiled NIF, no MSVC).
       {:explorer, "~> 0.10"}
     ] ++ exla_dep()

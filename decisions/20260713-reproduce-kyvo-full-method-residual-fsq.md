@@ -49,12 +49,22 @@ Reproduce Kyvo end-to-end with Residual FSQ, in dependency order:
   8192-entry VQ); coarse prefix = retrieval ID (`20260713-port-kyvo-residual-fsq.md`).
 - **Slang + PyTorch** substrate for the FSQ kernel; training in PyTorch. `torch` is required (now for
   training, not just inference).
-- **LM backbone = `Qwen/Qwen3-0.6B`** (new; replaces Llama-3.2-1B). Rationale: a faithful, *minimal*
-  reproduction needs a backbone near the paper's 1B, not above it. The **Qwen3.6 family was rejected** — it
-  has no small model (smallest are 27B dense / 35B-A3B MoE), so a 3.6 backbone would far exceed Kyvo's 1B
-  and stop being a method reproduction. `Qwen3-0.6B` is the true minimal (dense 0.6B, below 1B);
-  `Qwen3-1.7B` is the nearest-to-paper alternative if more capacity is wanted. Because torchtune does not
-  cover Qwen3, the LM stack moves from **torchtune → HF `transformers` + `peft` (LoRA)**.
+- **LM backbone = `Qwen/Qwen3.5-0.8B`** (replaces Llama-3.2-1B; supersedes the interim Qwen3-0.6B pick).
+  Rationale: a faithful, *minimal* reproduction needs a backbone near the paper's 1B. The **Qwen3.6 family
+  was rejected** — no small model (27B / 35B-A3B); **Qwen3.5 Small has 0.8B**, right at scale. Gemma 4 was
+  reranked and rejected (smallest E2B ≈ 2B effective; native multimodality is unused since images enter as
+  VQGAN tokens).
+- **Loading Qwen3.5-0.8B (Elixir/Bumblebee) — operational findings (2026-07-13):**
+  - Neither Bumblebee 0.7.0 nor GitHub main maps `Qwen3_5ForConditionalGeneration`; the config loads
+    under a **forced `module: Bumblebee.Text.Qwen3`** mapping (`TrellisSlatFsq.LM.load/2`). Bumblebee is
+    pinned to **GitHub default branch** per directive.
+  - HF serves the repo's weights via **xet-only storage**: plain HTTP `resolve` returns **403
+    AccessDenied** (Bumblebee can't download it directly). Workaround: fetch once with
+    `uvx --from "huggingface_hub[hf_xet]" hf download Qwen/Qwen3.5-0.8B`, then load via
+    `source: {:local, snapshot}`.
+  - Config: vocab 151,936; hidden 2560; 36 blocks; GQA 32/8.
+  - `LM.extend_embeddings/2` rebuilds the graph from a re-configured spec and pads every param with a
+    vocab-sized axis (random init, σ=0.02) — naming-robust.
 - **Verification** includes the `plausible-witness-dag` Lean proof of the FSQ index map (planned) plus
   runtime metrics; render aux-loss tests on the Slang→PyTorch path.
 
