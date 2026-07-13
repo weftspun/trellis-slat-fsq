@@ -30,9 +30,18 @@ references:
   - type: article
     title: "Aligning Text, Images, and 3D Structure Token-by-Token"
     authors:
-      - name: "Kyvo authors"
+      - family-names: Sahoo
+        given-names: Aadarsh
+      - family-names: Tibrewal
+        given-names: Vansh
+      - family-names: Gkioxari
+        given-names: Georgia
     year: 2025
+    date-published: 2025-06-09
+    doi: 10.48550/arXiv.2506.08002
+    url: "https://arxiv.org/abs/2506.08002"
+    notes: "Kyvo — the direct precedent for the SLAT to 512-token VQ-VAE (cs.CV)."
     identifiers:
       - type: other
         value: "arXiv:2506.08002"
-        description: "Kyvo — the direct precedent for the SLAT to 512-token VQ-VAE."
+        description: "arXiv preprint identifier."
