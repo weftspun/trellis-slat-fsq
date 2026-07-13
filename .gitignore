@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Environments / caches
+.venv/
+.pixi/
+.pytest_cache/
+.ruff_cache/
+
+# Lean / Lake (witness proofs)
+.lake/
+lake-packages/
+build/
+
+# Data / artifacts (keep the repo code-only)
+*.parquet
+*.pt
+*.ckpt
+lake/
