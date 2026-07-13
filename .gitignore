@@ -26,3 +26,11 @@ build/
 *.pt
 *.ckpt
 lake/
+
+# Elixir
+/_build/
+/deps/
+/cover/
+erl_crash.dump
+*.ez
+mix.lock
