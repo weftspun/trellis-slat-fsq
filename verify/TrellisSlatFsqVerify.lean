@@ -67,6 +67,17 @@ theorem decode_index (c : Codes) : decode (index c) = c := by
 theorem index_inj (a b : Codes) (h : index a = index b) : a = b := by
   rw [← decode_index a, ← decode_index b, h]
 
+/-- Surjectivity onto the codebook, stated explicitly. -/
+theorem index_surj (y : Nat) (h : y < codebookSize) : ∃ c : Codes, index c = y :=
+  ⟨decode y, index_decode y h⟩
+
+/-- Capstone: every index in [0, 8192) has EXACTLY ONE code tuple — the "8192-entry codebook" claim
+in one statement (existence = surjectivity, uniqueness = injectivity / no collisions).
+Stated without `∃!` (Mathlib notation; this package is core-only). -/
+theorem index_exists_unique (y : Nat) (h : y < codebookSize) :
+    ∃ c : Codes, index c = y ∧ ∀ c' : Codes, index c' = y → c' = c :=
+  ⟨decode y, index_decode y h, fun c' hc' => by rw [← decode_index c', hc']⟩
+
 /-! ## Witness-DAG certification (plausible-witness-dag)
 
 Searches for a round-trip violation witness inside the driver's Fin windows. `candidateIsWitness w`
@@ -84,12 +95,23 @@ def readback (walkSteps : Nat) : PlausibleWitnessDag.Readback Nat :=
   | some w => { value := w, found := true, witnessIdx := w, budgetHit := false }
   | none => { value := 0, found := false, budgetHit := bound < codebookSize }
 
+/-- Escalation ladder: the default rungs plus a final rung whose walk budget covers the ENTIRE
+8192-entry codebook, so the deterministic read-back is exhaustive and a missing witness resolves to
+`provablyNone` rather than `budgetHit`. -/
+def fullLadder : Array PlausibleWitnessDag.Level :=
+  PlausibleWitnessDag.ladder.push
+    { idx := 3, walkSteps := codebookSize, finBound := 4096, numInst := 2000 }
+
 def runCertification : IO Unit := do
   let (_, lvl, trace) ← PlausibleWitnessDag.resolve
     "fsq-index-roundtrip-violation"
     (fun _ w => roundTripBroken w)
     readback
-  IO.println s!"witness-dag: level={lvl} outcome={repr trace.outcome} (expected: provablyNone or budgetHit)"
+    fullLadder
+  let ok := trace.outcome == .provablyNone
+  IO.println s!"witness-dag: level={lvl} outcome={repr trace.outcome} exhaustive={ok}"
+  unless ok do
+    throw <| IO.userError "witness-dag certification did not resolve to provablyNone"
 
 #eval runCertification
 
