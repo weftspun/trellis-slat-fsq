@@ -1,14 +1,39 @@
 /-
-Proof obligations for the SLAT->FSQ tokenizer (see ../priv/slang/fsq.slang and lib/trellis_slat_fsq/fsq.ex).
+# Proof obligations for the SLAT -> Residual-FSQ tokenizer
 
-Two layers of assurance:
+## Original task
+
+Reproduce Kyvo — Sahoo, Tibrewal, Gkioxari, *"Aligning Text, Images, and 3D Structure
+Token-by-Token"* (arXiv:2506.08002) — replacing its 3D VQ-VAE's learned 8192-entry VQ codebook with
+**Residual FSQ**: TRELLIS.2 SLAT (64^3 x 8) -> encoder -> quantize -> **~512 reconstructive tokens per
+object** (8^3 positions; token generation for avatars / worlds / props), where the coarse residual
+prefix doubles as the retrieval/identification ID. Decision records:
+
+* ../decisions/20260713-generation-slat-fsq-render-auxloss.md   (generation channel, render aux-loss)
+* ../decisions/20260713-port-kyvo-residual-fsq.md               (Residual FSQ; [8,8,8,16] = exactly 8192)
+* ../decisions/20260713-reproduce-kyvo-full-method-residual-fsq.md (full-method reproduction)
+
+These proofs underwrite the load-bearing discrete claim of that task: the FSQ level set [8, 8, 8, 16]
+gives **per-code parity with Kyvo's 8192-entry VQ** — a codebook of exactly 8192 codes with no
+collisions and no unreachable entries — and the residual stage streams inherit that bijectivity at
+every depth, so the ~512-token stream is reconstruction-faithful at the discrete layer and the
+coarse-prefix ID is well-defined. Kernel under proof: ../trellis_slat_fsq/fsq.slang (slangtorch/CUDA)
+and its plain-buffer deploy variant fsq_nif.slang; the Lean `index` models their shared mixed-radix
+fold.
+
+## Assurance layers
 
 1. **Kernel-checked proofs** — the FSQ index map (mixed-radix fold over levels [8, 8, 8, 16], basis
-   [1, 8, 64, 512]) is a bijection onto [0, 8192). Proven with an explicit inverse (`decode`) and `omega`;
-   no axioms, no `sorry`.
-2. **Witness-DAG certification** — `PlausibleWitnessDag.resolve` (fire/plausible-witness-dag) searches for
-   a round-trip violation witness (`decode (index c) ≠ c`) across its plausible/Fin ladder; the expected
-   outcome is `provablyNone` within budget. Executed at build time by `#eval` below.
+   [1, 8, 64, 512], basis derived not asserted) is a bijection onto [0, 8192), with an explicit
+   inverse (`decode`) and `omega`; residual stage streams are componentwise bijective; no axioms,
+   no `sorry`.
+2. **Witness-DAG certification** — `PlausibleWitnessDag.resolve` (fire/plausible-witness-dag) searches
+   for a round-trip violation witness (`decode (index c) ≠ c`) across an escalation ladder whose final
+   rung sweeps the ENTIRE codebook; the build fails unless the outcome is `provablyNone`.
+3. **Exhaustive-on-hardware twin** — ../tests/test_tokenizer.py drives all 8192 code tuples through
+   the actual Slang CUDA kernel on the GPU and asserts the same bijection (each index hit exactly
+   once). Float bound/round behavior between those points and stage-to-stage residual peeling remain
+   empirical by nature.
 -/
 
 import PlausibleWitnessDag
