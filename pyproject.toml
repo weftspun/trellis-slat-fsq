@@ -30,11 +30,21 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["trellis_slat_fsq"]
 
-# --- pixi (prefix.dev) — project package manager ---------------------------------------------------------
-# `pixi install` builds the env; `pixi run test` runs the suite (Slang path, needs the `slang` env + CUDA).
+# --- pixi (prefix.dev) — THE project env manager (no ad-hoc uv venvs) ------------------------------------
+# `pixi install -e train` / `-e slang` build the envs; see [tool.pixi.tasks] for entry points.
+# GPU REQUIRED on this project (CPU banned): both envs pin CUDA torch wheels.
 [tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64", "win-64"]
+
+# CUDA torch wheels live on the PyTorch indexes, not PyPI. Both indexes are pytorch.org (equally
+# trusted), so best-match across them is safe — needed because the two envs pin different cuXXX builds.
+[tool.pixi.pypi-options]
+extra-index-urls = [
+    "https://download.pytorch.org/whl/cu130",
+    "https://download.pytorch.org/whl/cu126",
+]
+index-strategy = "unsafe-best-match"
 
 # The package itself (editable) — pulls torch from [project.dependencies] as a pypi dep.
 [tool.pixi.pypi-dependencies]
@@ -46,26 +56,37 @@ python = ">=3.10,<3.13"
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8"
 
-# CUDA fast path: slangtorch (pypi). The Slang -> PyTorch tests require this env + a CUDA device.
+# Modern CUDA torch for training/eval (works for pure-PyTorch; CANNOT build slangtorch extensions —
+# torch 2.13 headers break MSVC with C2666, see scripts/run_slang_tests.ps1).
+[tool.pixi.feature.gpu.pypi-dependencies]
+torch = "==2.13.0+cu130"
+
+# slangtorch JIT stack: the ONLY combo that compiles on this box is torch 2.7.1+cu126 + CUDA 12.6.3
+# toolkit + MSVC 14.44 (VS2022). The env vars/toolchain are pinned by scripts/run_slang_tests.ps1.
 [tool.pixi.feature.slang.pypi-dependencies]
+torch = "==2.7.1+cu126"
 slangtorch = "*"
+ninja = "*"
+numpy = "*"
 
 [tool.pixi.feature.train.pypi-dependencies]
-slangtorch = "*"
-transformers = ">=4.44"
+transformers = ">=5"   # native Qwen3_5 support
 peft = ">=0.11"
-lpips = "*"
-usd-core = "*"
+duckdb = "*"           # Parquet read/write (standing directive)
+safetensors = "*"
+lpips = "*"            # render aux-loss perceptual term (Phase 3+)
+usd-core = "*"         # CC0 .usda stage assets (Phase 4)
 
 [tool.pixi.environments]
-default = { features = ["test"] }
-slang = { features = ["test", "slang"] }
-train = { features = ["test", "slang", "train"] }
+default = { features = ["test", "gpu"] }
+slang = { features = ["test", "slang"] }              # torch 2.7.1+cu126 — kernel tests only
+train = { features = ["test", "gpu", "train"] }       # torch 2.13+cu130 — training/eval
 
 [tool.pixi.tasks]
 test = "pytest -q"
-# On this box the slangtorch JIT needs a pinned toolchain (torch 2.7.1+cu126 + CUDA 12.6.3 +
-# MSVC 14.44) — the script sets it all up; see the commit history / memory for why.
+# slangtorch JIT toolchain (CUDA 12.6.3 + MSVC 14.44 + VSCMD_ARG_TGT_ARCH) — the script pins it all.
 test-slang = "powershell -File scripts/run_slang_tests.ps1"
 # Lean proofs + exhaustive plausible-witness-dag certification (fails the build unless provablyNone).
 verify = { cmd = "lake build", cwd = "verify" }
+phase5 = "python scripts/phase5_tokenizer_train.py"   # run with: pixi run -e train phase5
+phase6 = "python scripts/phase6_loop.py"              # run with: pixi run -e train phase6

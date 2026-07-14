@@ -16,7 +16,10 @@ $cuda = "$env:USERPROFILE\scoop\apps\cuda-12.6.3\current"
 $cache = Join-Path $repo "trellis_slat_fsq\.slangtorch_cache"
 if (Test-Path $cache) { Remove-Item -Recurse -Force $cache -Confirm:$false }
 
-$env:PATH = "$repo\.venv-slang\Scripts;$cuda\bin;$msvc\bin\Hostx64\x64;" + $env:PATH
+# pixi-managed env (pixi install -e slang): torch 2.7.1+cu126 + slangtorch + ninja.
+$py = "$repo\.pixi\envs\slang"
+
+$env:PATH = "$py;$py\Scripts;$cuda\bin;$msvc\bin\Hostx64\x64;" + $env:PATH
 $env:INCLUDE = "$msvc\include;$sdk\Include\$sdkv\ucrt;$sdk\Include\$sdkv\um;$sdk\Include\$sdkv\shared"
 $env:LIB = "$msvc\lib\x64;$sdk\Lib\$sdkv\ucrt\x64;$sdk\Lib\$sdkv\um\x64"
 $env:CUDA_HOME = $cuda
@@ -25,5 +28,5 @@ $env:TORCH_CUDA_ARCH_LIST = "8.9"     # RTX 4090 (sm_89) only; skip other arch c
 $env:VSCMD_ARG_TGT_ARCH = "x64"        # stop torch cpp_extension re-activating the newest VS
 
 Set-Location $repo
-& "$repo\.venv-slang\Scripts\python.exe" -m pytest tests/ -v --tb=short
+& "$py\python.exe" -m pytest tests/ -v --tb=short
 exit $LASTEXITCODE

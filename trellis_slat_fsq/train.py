@@ -40,10 +40,12 @@ def latent_recon_loss(recon: torch.Tensor, target: torch.Tensor) -> torch.Tensor
     return F.mse_loss(recon, target)
 
 
-def train_tokenizer(batches, cfg: TokenizerTrainConfig, renderer=None, lpips_fn=None, device="cpu"):
+def train_tokenizer(batches, cfg: TokenizerTrainConfig, renderer=None, lpips_fn=None, device="cpu",
+                    on_step=None):
     """Train the reconstructive tokenizer. `batches` yields tensors [B, 8, 64, 64, 64].
 
     `renderer` (a Slang 3DGS adapter) is required for ablation="render_aux"; latent_only ignores it.
+    `on_step(total_loss: float)` is called after each optimizer step, if given.
     Returns the trained tokenizer and the last step's loss breakdown.
     """
     if cfg.ablation not in ("render_aux", "latent_only"):
@@ -74,5 +76,7 @@ def train_tokenizer(batches, cfg: TokenizerTrainConfig, renderer=None, lpips_fn=
         opt.step()
         breakdown["total"] = loss.detach()
         last = breakdown
+        if on_step is not None:
+            on_step(float(loss.detach()))
         step += 1
     return tok, last
