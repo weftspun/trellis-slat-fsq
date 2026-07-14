@@ -36,6 +36,34 @@ Reproduce Kyvo end-to-end with Residual FSQ, in dependency order:
 3. **Task suite + metrics** — 3D rendering, recognition, instruction edits, VQA, image-to-3D; metrics
    Jaccard / SSIM / L2 / text-accuracy.
 
+## Evidence — full paper (PDF read 2026-07-13, `thirdparty/`), beyond the earlier HTML extraction
+
+- **3D VQ-VAE recipe (Appendix D.2):** densify sparse SLAT → 64³×8 grid; 3D conv U-Net downsampling
+  64³→32³→16³→8³ with channel widths (32, 128, 512, 1024); each 8³ cell → 128-dim vector → nearest of
+  8192 EMA codes (τ=0.99); straight-through estimator. TRELLIS encoder/decoder stay **frozen**.
+- **Loss:** `L = ‖x−x̂‖² + β·commit + λ_KL·D_KL + γ·L_render` with **β=0.25, λ_KL=1e-6, γ=0.1**, and
+  `L_render = L1 + 0.2·(1−SSIM) + 0.2·LPIPS` over renders from Gaussian reconstructions (150 random
+  views beats single fixed view). With **FSQ, the commit and KL terms vanish by construction** (no
+  learned codebook) — our loss is `‖x−x̂‖² + γ·L_render`.
+- **Optimization:** 200k steps, ~168k Objaverse-Sketchfab assets, batch 8, AdamW lr **3e-4** constant,
+  no weight decay, mixed precision, adaptive grad clipping. Codebook usage is heavy-tailed but fully
+  active (Fig. 23) — size is neither over- nor under-parameterized at 8192.
+- **CRITICAL — Kyvo's training SLATs are synthetic (Appendix A.1):** extracting SLATs via the original
+  TRELLIS pipeline (150 renders + DINOv2) was too expensive, so they render each asset **once** and
+  feed it as image-conditioning to the **pre-trained TRELLIS slat generator**, using the sampled SLATs
+  for training; evaluation uses true-pipeline SLATs and "performance transfers well". **Our
+  `scripts/make_real_slats.py` / `make_slat_dataset.py` implement exactly this recipe** (single render
+  → TRELLIS-image-large flow model → SLAT), so our dataset construction is method-faithful, not a
+  shortcut.
+- **Serialization (Appendix A.2/A.4):** scenes as marker-structured strings — `[SCENE-START]`,
+  `[OBJECT-START]`, `[SIZE]`, `[COLOR]`, `[SHAPE]`, `[LOCATION]`, `[POSE]`, `[OUTPUT-SEP]`,
+  `[IMAGE-START]`… registered as special tokens; **512 shape tokens follow `[SHAPE]`**; every location
+  coordinate is a distinct numerical token (hybrid learned + sine-cosine embeddings); **bidirectional
+  attention within shape-token spans** when training the LLM. Our `lm.py` boundary-token scheme is the
+  same shape; adopting the full marker vocabulary + numeric tokens is open work for scene-level tasks.
+- **Dataset scale (Appendix A.1):** CLEVR 120k scenes (rendering/recognition), 100k instruction pairs,
+  20k QA; ObjaWorld 100k scenes ×2 setups; Objectron/ARKitScenes per Omni3D splits.
+
 ## Data
 
 - **Kyvo released**: pre-tokenized HF sequences + SLAT for CLEVR / ObjaWorld / Objectron. We re-quantize

@@ -38,6 +38,7 @@ def main() -> None:
     ap.add_argument("--steps", type=int, default=200)
     ap.add_argument("--batch", type=int, default=2)
     ap.add_argument("--objects", type=int, default=16)
+    ap.add_argument("--data", default=None, help="dir of real TRELLIS SLATs (scripts/make_real_slats.py)")
     args = ap.parse_args()
 
     if not torch.cuda.is_available():
@@ -45,7 +46,15 @@ def main() -> None:
     print(f"device: {torch.cuda.get_device_name(0)}")
 
     torch.manual_seed(0)
-    corpus = torch.randn(args.objects, 8, 64, 64, 64)
+    if args.data:
+        from trellis_slat_fsq.data import load_real_slats
+
+        records = load_real_slats(args.data)
+        corpus = torch.stack([r["slat"] for r in records])
+        print(f"corpus: {corpus.shape[0]} REAL TRELLIS SLATs from {args.data}")
+    else:
+        corpus = torch.randn(args.objects, 8, 64, 64, 64)
+        print(f"corpus: {args.objects} synthetic (noise) SLATs — pass --data for real ones")
 
     losses: list[float] = []
     cfg = TokenizerTrainConfig(ablation="latent_only", steps=args.steps)

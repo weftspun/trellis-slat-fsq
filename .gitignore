@@ -44,3 +44,4 @@ native/*.obj
 erl_crash.dump
 .slangtorch_cache/
 .venv-slang/
+data/

@@ -65,6 +65,27 @@ class UsdStageSlatDataset(Dataset):
         return {"slat": slat.float(), "source": "usd", "id": self.usd_paths[i]}
 
 
+def load_real_slats(directory: str) -> list[dict]:
+    """Load real TRELLIS SLATs extracted by scripts/make_real_slats.py.
+
+    Each `<name>.pt` holds `{"dense": (8, 64, 64, 64) float32, "coords", "feats"}` — a densified
+    structured latent sampled from microsoft/TRELLIS-image-large's SLAT flow model.
+    """
+    import glob as _glob
+    import os as _os
+
+    records = []
+    for path in sorted(_glob.glob(_os.path.join(directory, "*.pt"))):
+        blob = torch.load(path, map_location="cpu", weights_only=True)
+        slat = blob["dense"]
+        assert tuple(slat.shape) == SLAT_SHAPE, f"expected {SLAT_SHAPE}, got {tuple(slat.shape)}"
+        records.append({"slat": slat.float(), "source": "trellis",
+                        "id": _os.path.splitext(_os.path.basename(path))[0]})
+    if not records:
+        raise FileNotFoundError(f"no real SLATs in {directory}; run scripts/make_real_slats.py first")
+    return records
+
+
 def synthetic_slat_dataset(n: int = 8, seed: int = 0) -> list[dict]:
     """Toy SLATs for exercising the harness on CPU with no external data (not a scientific result)."""
     gen = torch.Generator().manual_seed(seed)

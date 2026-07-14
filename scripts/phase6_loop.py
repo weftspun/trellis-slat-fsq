@@ -40,17 +40,28 @@ SNAPSHOT_GLOB = os.path.expanduser(
 DEVICE = "cuda"  # CPU is banned (user directive); scripts hard-fail without CUDA.
 
 
-def step13_tokenize(n_objects: int, seq_3d: int, out_parquet: str) -> list[dict]:
-    """Synthetic SLAT -> ResidualFSQ tokens (stage-0 prefix of the first seq_3d positions) -> Parquet."""
+def step13_tokenize(n_objects: int, seq_3d: int, out_parquet: str, data_dir: str | None = None) -> list[dict]:
+    """SLAT -> ResidualFSQ tokens (stage-0 prefix of the first seq_3d positions) -> Parquet.
+
+    With `data_dir`, uses REAL TRELLIS SLATs (scripts/make_real_slats.py); else synthetic noise."""
     torch.manual_seed(0)
     tok = SlatFsqReconstructiveTokenizer().to(DEVICE)  # untrained encoder; quantizer is the fixed FSQ grid
+
+    if data_dir:
+        from trellis_slat_fsq.data import load_real_slats
+
+        records = load_real_slats(data_dir)[:n_objects]
+        slats = [(r["id"], r["slat"].unsqueeze(0).to(DEVICE)) for r in records]
+        print(f"[13] using {len(slats)} REAL TRELLIS SLATs from {data_dir}")
+    else:
+        slats = [(f"syn-{i}", torch.randn(1, 8, 64, 64, 64, device=DEVICE)) for i in range(n_objects)]
+
     rows = []
-    for i in range(n_objects):
-        slat = torch.randn(1, 8, 64, 64, 64, device=DEVICE)
+    for name, slat in slats:
         with torch.no_grad():
             indices, _codes = tok.encode(slat)  # [1, 8, 8, 8, Q]
         stage0 = indices[0, ..., 0].reshape(-1)[:seq_3d].tolist()  # raw grid order (Kyvo layout)
-        rows.append({"id": f"syn-{i}", "tokens": stage0})
+        rows.append({"id": name, "tokens": stage0})
 
     con = duckdb.connect()
     con.execute("CREATE TABLE seqs (id VARCHAR, tokens BIGINT[])")
@@ -136,6 +147,7 @@ def main() -> None:
     ap.add_argument("--steps", type=int, default=2)
     ap.add_argument("--gen-tokens", type=int, default=24)
     ap.add_argument("--seq-3d", type=int, default=128, help="3D tokens per object (512 = full budget)")
+    ap.add_argument("--data", default=None, help="dir of real TRELLIS SLATs (scripts/make_real_slats.py)")
     args = ap.parse_args()
 
     if not torch.cuda.is_available():
@@ -148,7 +160,7 @@ def main() -> None:
     snapshot = snapshots[0]
 
     out_parquet = os.path.join(os.path.dirname(__file__), "..", "phase6_sequences.parquet")
-    rows = step13_tokenize(args.objects, args.seq_3d, out_parquet)
+    rows = step13_tokenize(args.objects, args.seq_3d, out_parquet, data_dir=args.data)
 
     vocab = UnifiedVocab(text_vocab_size=151_936)
     print(f"unified vocab: total={vocab.total} slat_offset={vocab.slat_offset}")

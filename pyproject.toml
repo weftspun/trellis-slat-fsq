@@ -77,10 +77,47 @@ safetensors = "*"
 lpips = "*"            # render aux-loss perceptual term (Phase 3+)
 usd-core = "*"         # CC0 .usda stage assets (Phase 4)
 
+# Real-SLAT extraction: run microsoft/TRELLIS' SLAT flow model and capture the latents.
+# Python 3.11 pinned — spconv-cu120 ships no cp312+ Windows wheel. ATTN_BACKEND=sdpa (no xformers).
+[tool.pixi.feature.trellis.dependencies]
+python = "3.11.*"
+
+[tool.pixi.feature.trellis.pypi-dependencies]
+torch = "==2.7.1+cu126"
+torchvision = "*"
+spconv-cu120 = "*"
+xformers = "==0.0.31.post1"
+slangtorch = "*"
+ninja = "*"
+"huggingface_hub" = { version = "*", extras = ["hf_xet"] }
+safetensors = "*"
+easydict = "*"
+transformers = "*"
+einops = "*"
+opencv-python-headless = "*"
+imageio = "*"
+pillow = "*"
+scipy = "*"
+tqdm = "*"
+trimesh = "*"
+open3d = "*"
+onnxruntime = "*"
+rembg = "*"
+usd-core = "*"
+# remainder of TRELLIS setup.sh's basic deps (latent-only path still imports these modules)
+plyfile = "*"
+imageio-ffmpeg = "*"
+xatlas = "*"
+pyvista = "*"
+pymeshfix = "*"
+igraph = "*"
+utils3d = { git = "https://github.com/EasternJournalist/utils3d.git", rev = "9a4eb15e4021b67b12c460c7057d642626897ec8" }
+
 [tool.pixi.environments]
 default = { features = ["test", "gpu"] }
 slang = { features = ["test", "slang"] }              # torch 2.7.1+cu126 — kernel tests only
 train = { features = ["test", "gpu", "train"] }       # torch 2.13+cu130 — training/eval
+trellis = { features = ["trellis"] }                  # py3.11 + spconv — real-SLAT extraction
 
 [tool.pixi.tasks]
 test = "pytest -q"
