@@ -42,3 +42,5 @@ priv/*.exp
 native/*.gen.cpp
 native/*.obj
 erl_crash.dump
+.slangtorch_cache/
+.venv-slang/
