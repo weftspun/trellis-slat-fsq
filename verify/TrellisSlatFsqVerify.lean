@@ -26,6 +26,13 @@ def codebookSize : Nat := 8192
 
 theorem levels_prod : levels.foldl (· * ·) 1 = codebookSize := by decide
 
+/-- The mixed-radix basis is DERIVED from the levels (exclusive scan of products), not asserted. -/
+theorem basis_is_levels_scan :
+    basis = (levels.take 3).foldl (fun acc l => acc ++ [acc.getLast! * l]) [1] := by decide
+
+/-- Token budget: 8^3 spatial positions = 512 tokens/object (one code per position per stage). -/
+theorem positions_count : 8 * 8 * 8 = 512 := by decide
+
 /-- Per-dim codes for one token. -/
 structure Codes where
   c0 : Fin 8
@@ -77,6 +84,41 @@ Stated without `∃!` (Mathlib notation; this package is core-only). -/
 theorem index_exists_unique (y : Nat) (h : y < codebookSize) :
     ∃ c : Codes, index c = y ∧ ∀ c' : Codes, index c' = y → c' = c :=
   ⟨decode y, index_decode y h, fun c' hc' => by rw [← decode_index c', hc']⟩
+
+/-! ## Residual FSQ stage streams
+
+Residual FSQ emits one code tuple per stage; a position's token stream is a function
+`Fin Q → Codes` and its index stream is the componentwise `index`. The float residual-peeling
+between stages is empirical (GPU-tested); what is provable — and proven here — is that the
+DISCRETE stream layer inherits bijectivity componentwise: distinct streams never collide, every
+in-range index stream is realized, and the coarse ID prefix is a projection of an injective map. -/
+
+/-- Componentwise index of a Q-stage code stream. -/
+def stageIndices {Q : Nat} (f : Fin Q → Codes) : Fin Q → Nat :=
+  fun k => index (f k)
+
+/-- Range: every stage of a stream indexes into [0, 8192). -/
+theorem stageIndices_lt {Q : Nat} (f : Fin Q → Codes) (k : Fin Q) :
+    stageIndices f k < codebookSize :=
+  index_lt (f k)
+
+/-- Injectivity: two streams with the same index stream are equal (no collisions at any depth —
+this is what makes the full ~512-token stream reconstruction-faithful at the discrete layer). -/
+theorem stageIndices_inj {Q : Nat} (a b : Fin Q → Codes)
+    (h : ∀ k, stageIndices a k = stageIndices b k) : a = b :=
+  funext fun k => index_inj _ _ (h k)
+
+/-- Surjectivity: every in-range index stream is realized by some code stream (capacity is exactly
+8192^Q — nothing in the stream space is wasted). -/
+theorem stageIndices_surj {Q : Nat} (g : Fin Q → Nat) (h : ∀ k, g k < codebookSize) :
+    ∃ f : Fin Q → Codes, ∀ k, stageIndices f k = g k :=
+  ⟨fun k => decode (g k), fun k => index_decode (g k) (h k)⟩
+
+/-- The coarse retrieval-ID prefix (first `p` stages) is literally a restriction of the stream —
+so equal streams have equal IDs by construction, and ID lossiness is exactly stream truncation. -/
+theorem idPrefix_is_restriction {Q p : Nat} (hp : p ≤ Q) (f : Fin Q → Codes) (k : Fin p) :
+    stageIndices (fun j : Fin p => f (j.castLE hp)) k = stageIndices f (k.castLE hp) :=
+  rfl
 
 /-! ## Witness-DAG certification (plausible-witness-dag)
 
